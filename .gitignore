@@ -23,4 +23,5 @@ Thumbs.db
 *.sqlite3
 
 # Flask instance folder
-instance/
+instance/*
+!instance/project_manager.sqlite
