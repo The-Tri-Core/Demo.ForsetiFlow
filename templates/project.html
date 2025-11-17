@@ -361,8 +361,16 @@
 
   <template id="kanban-card-template">
     <div class="kanban-card glass" draggable="true">
-      <div class="kanban-title"></div>
-      <div class="kanban-parent muted"></div>
+      <div class="kanban-top">
+        <div class="kanban-title-group">
+          <div class="kanban-title"></div>
+          <div class="kanban-parent muted"></div>
+        </div>
+        <div class="kanban-top-actions">
+          <span class="collapsed-due pill ghost tiny" hidden></span>
+          <button class="pill ghost tiny collapse-toggle" type="button" aria-expanded="true" title="Collapse card">−</button>
+        </div>
+      </div>
       <div class="kanban-meta">
         <div class="meta-summary">
           <div class="summary-row">

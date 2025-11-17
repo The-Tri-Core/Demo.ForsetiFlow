@@ -357,6 +357,76 @@ button {
   transition: transform 140ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
 
+.kanban-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.kanban-title-group {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kanban-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kanban-title,
+.kanban-parent {
+  word-break: break-word;
+}
+
+.collapsed-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.collapsed-due::before {
+  content: "Due";
+  color: #a5b4fc;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.collapse-toggle {
+  padding: 6px 10px;
+}
+
+.kanban-card.collapsed {
+  min-height: auto;
+  max-height: none;
+  padding: 10px 12px;
+  gap: 6px;
+}
+
+.kanban-card.collapsed .kanban-meta,
+.kanban-card.collapsed .kanban-footer,
+.kanban-card.collapsed .meta-panel {
+  display: none;
+}
+
+.kanban-card.collapsed .kanban-title,
+.kanban-card.collapsed .kanban-parent {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kanban-card.collapsed .kanban-top {
+  gap: 8px;
+}
+
 .kanban-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42);

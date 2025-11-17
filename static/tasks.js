@@ -15,6 +15,7 @@
   const nameEl = document.getElementById("project-name");
   const descEl = document.getElementById("project-desc");
   const taskResourceFormSelect = document.getElementById("task-resource-select");
+  const collapsedState = new Map();
   let draggingTaskId = null;
   let resources = [];
 
@@ -66,6 +67,8 @@
   function renderTask(task) {
     const node = cardTemplate.content.cloneNode(true);
     const card = node.querySelector(".kanban-card");
+    const collapseToggle = node.querySelector(".collapse-toggle");
+    const collapsedDue = node.querySelector(".collapsed-due");
     const title = node.querySelector(".kanban-title");
     const parent = node.querySelector(".kanban-parent");
     const resourceSel = node.querySelector(".task-resource");
@@ -103,11 +106,16 @@
       due.classList.remove("no-due");
       dueField.style.display = "grid";
       dueEmpty.style.display = "none";
+      if (collapsedDue) {
+        collapsedDue.textContent = task.due_date;
+        collapsedDue.hidden = false;
+      }
     } else {
       due.value = "";
       due.classList.add("no-due");
       dueField.style.display = "none";
       dueEmpty.style.display = "flex";
+      if (collapsedDue) collapsedDue.hidden = true;
     }
 
     saveBtn.addEventListener("click", async () => {
@@ -147,6 +155,17 @@
       metaToggle.addEventListener("click", () => {
         const isOpen = metaPanel.classList.toggle("open");
         metaToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      });
+    }
+
+    const initialCollapsed = collapsedState.get(task.id) || false;
+    applyCollapsedState(card, collapseToggle, metaPanel, metaToggle, initialCollapsed);
+
+    if (collapseToggle) {
+      collapseToggle.addEventListener("click", () => {
+        const next = !card.classList.contains("collapsed");
+        collapsedState.set(task.id, next);
+        applyCollapsedState(card, collapseToggle, metaPanel, metaToggle, next);
       });
     }
 
@@ -205,6 +224,19 @@
 
   function clearDragOver() {
     Object.values(columns).forEach((col) => col.classList.remove("drag-over"));
+  }
+
+  function applyCollapsedState(card, collapseToggle, metaPanel, metaToggle, collapsed) {
+    card.classList.toggle("collapsed", collapsed);
+    if (collapseToggle) {
+      collapseToggle.textContent = collapsed ? "+" : "−";
+      collapseToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      collapseToggle.title = collapsed ? "Expand card" : "Collapse card";
+    }
+    if (collapsed && metaPanel) {
+      metaPanel.classList.remove("open");
+      if (metaToggle) metaToggle.setAttribute("aria-expanded", "false");
+    }
   }
 
   function setupTaskForm() {
