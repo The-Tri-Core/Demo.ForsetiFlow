@@ -4,13 +4,16 @@ from flask import Flask, render_template, request, jsonify, abort, g
 
 app = Flask(__name__)
 
+# Location for the SQLite file; override PROJECT_DATA_DIR to move it to a writable path on the server.
+DATA_DIR = os.environ.get("PROJECT_DATA_DIR") or app.instance_path
+os.makedirs(DATA_DIR, exist_ok=True)
+
 DB_FILENAME = os.environ.get("PROJECT_DB", "project_manager.sqlite")
-DB_PATH = os.path.join(app.instance_path, DB_FILENAME)
+DB_PATH = os.path.join(DATA_DIR, DB_FILENAME)
 
 
 def get_db():
     if "db" not in g:
-        os.makedirs(app.instance_path, exist_ok=True)
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         g.db = conn
