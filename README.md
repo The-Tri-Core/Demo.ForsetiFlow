@@ -23,7 +23,24 @@ A minimal project/task tracker built with Flask and vanilla HTML/JS. Data is sto
    - Windows shortcut: double-click `start_project_manager.bat` (creates/activates `.venv`, installs deps, and starts the server).
 7) Open http://127.0.0.1:5000 in your browser.
 
+## Running with Docker
+
+**Docker Compose**: `docker compose up -d` then open <http://127.0.0.1:5000>
+
+**Docker CLI**: `docker build -t project-manager . && docker run -d -p 5000:5000 -v ./data:/app/instance --name project-manager project-manager`
+
+Data persists in `./data` directory. See environment variables below for configuration options.
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `5000` | Port the Flask server listens on |
+| `PROJECT_DATA_DIR` | `/app/instance` | Directory where SQLite database is stored |
+| `PROJECT_DB` | `project_manager.sqlite` | SQLite database filename |
+
 ## Configuration & Data
+
 - Database file: `instance/project_manager.sqlite` (auto-created). Override with `PROJECT_DB=/path/to/db.sqlite`.
 - To reset data, stop the app and delete the SQLite file (or point `PROJECT_DB` to a new path).
 
