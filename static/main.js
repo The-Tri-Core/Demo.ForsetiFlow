@@ -83,7 +83,7 @@ async function renderProject(project, stats) {
 
   const flowSelect = node.querySelector(".flow-select");
   const flows = {
-    min: `/projects/${project.id}/dashboard`,
+    min: `/projects/${project.id}/dashboard?flow=min`,
     full: `/projects/${project.id}`,
   };
   const prefKey = `pm_flow_pref_${project.id}`;

@@ -52,8 +52,12 @@
     const addToolBtnTop = document.getElementById("add-tool-btn-top");
     const emptyState = document.getElementById("tools-empty");
     const sections = document.getElementById("tool-sections");
+    const cardPanel = document.getElementById("tool-card-panel");
     const cardList = document.getElementById("tool-card-list");
+    const inlineWrapper = document.getElementById("inline-tool-wrapper");
     const chips = [document.getElementById("tool-list"), document.getElementById("tool-list-top")];
+    const flowMode = new URLSearchParams(window.location.search).get("flow") || "min";
+    const isFullFlow = flowMode === "full";
     const toolOptions = [
       { key: "tasks", label: "Task form" },
       { key: "kanban", label: "Kanban board" },
@@ -73,6 +77,7 @@
 
     let activeTools = [];
     let renderNonce = 0;
+    const instantiated = new Set();
     const toolStorageKey = window.PROJECT_ID ? `pm_tools_${window.PROJECT_ID}` : null;
 
     function saveTools() {
@@ -89,9 +94,18 @@
       if (hasVisible) {
         if (emptyState) emptyState.classList.add("hidden");
         if (sections) sections.classList.remove("hidden");
+        if (isFullFlow) {
+          cardPanel?.classList.remove("hidden");
+          inlineWrapper?.classList.add("hidden");
+        } else {
+          cardPanel?.classList.add("hidden");
+          inlineWrapper?.classList.remove("hidden");
+        }
       } else {
         if (emptyState) emptyState.classList.remove("hidden");
         if (sections) sections.classList.add("hidden");
+        cardPanel?.classList.add("hidden");
+        inlineWrapper?.classList.add("hidden");
       }
     }
 
@@ -105,7 +119,13 @@
           activeTools = list.filter((t) => t && t.key).map((t) => ({ ...t, archived: !!t.archived }));
           renderChips();
           refreshVisibility();
-          renderToolCards();
+          if (isFullFlow) {
+            renderToolCards();
+          } else {
+            activeTools.forEach((t) => {
+              if (!t.archived) instantiateTool(t);
+            });
+          }
         }
       } catch (e) {
         // ignore parse errors
@@ -137,7 +157,11 @@
       renderChips();
       refreshVisibility();
       saveTools();
-      renderToolCards();
+      if (isFullFlow) {
+        renderToolCards();
+      } else if (removed) {
+        hideToolSectionIfUnused(removed.key);
+      }
     }
 
     function archiveTool(idx) {
@@ -147,7 +171,11 @@
       renderChips();
       refreshVisibility();
       saveTools();
-      renderToolCards();
+      if (isFullFlow) {
+        renderToolCards();
+      } else {
+        hideToolSectionIfUnused(tool.key);
+      }
     }
 
     function getFirstIndexForKey(key) {
@@ -211,6 +239,13 @@
         removeTool(idx);
         modal.remove();
       });
+    }
+
+    function hideToolSectionIfUnused(key) {
+      const stillExists = activeTools.some((t) => t.key === key && !t.archived);
+      if (stillExists || !sections) return;
+      const target = sections.querySelector(`[data-tool="${key}"]`);
+      if (target) target.classList.add("hidden-tool");
     }
 
     function addToolSelection() {
@@ -278,14 +313,18 @@
         activeTools.push(tool);
         renderChips();
         refreshVisibility();
-        renderToolCards();
+        if (isFullFlow) {
+          renderToolCards();
+        } else {
+          instantiateTool(tool);
+        }
         saveTools();
         close();
       });
     }
 
     async function renderToolCards() {
-      if (!cardList) return;
+      if (!cardList || !isFullFlow) return;
       const visible = activeTools.filter((t) => !t.archived);
       cardList.innerHTML = "";
       if (!visible.length) return;
@@ -469,10 +508,48 @@
       return card;
     }
 
+    function instantiateTool(tool) {
+      if (!tool || tool.archived || isFullFlow) return;
+      if (!sections) return;
+      const target = sections.querySelector(`[data-tool="${tool.key}"]`);
+      if (!target) return;
+      if (target.classList.contains("hidden-tool")) {
+        target.classList.remove("hidden-tool");
+      }
+      const headerTitle = target.querySelector(".panel-head h2");
+      if (headerTitle && !target.dataset.named) {
+        headerTitle.textContent = tool.label;
+        target.dataset.named = "true";
+      }
+      const head = target.querySelector(".panel-head") || target;
+      if (head && !head.querySelector(".tool-close")) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "tool-close";
+        btn.dataset.toolKey = tool.key;
+        btn.textContent = "×";
+        head.appendChild(btn);
+        btn.addEventListener("click", () => {
+          const idx = getFirstIndexForKey(tool.key);
+          if (idx >= 0) confirmToolAction(idx);
+        });
+      }
+      if (!instantiated.has(tool.key)) {
+        if (tool.key === "tasks" && window.initTasks) window.initTasks();
+        if (tool.key === "kanban" && window.initTasks) window.initTasks();
+        if (tool.key === "backlog" && window.initBacklogs) window.initBacklogs();
+        if (tool.key === "sprints" && window.initSprints) window.initSprints();
+        if (tool.key === "resources" && window.initResources) window.initResources();
+        instantiated.add(tool.key);
+      }
+    }
+
     if (addToolBtn) addToolBtn.addEventListener("click", addToolSelection);
     if (addToolBtnTop) addToolBtnTop.addEventListener("click", addToolSelection);
     loadSavedTools();
-    renderToolCards();
+    if (isFullFlow) {
+      renderToolCards();
+    }
   };
 
   // Overview shows high-level metrics only
