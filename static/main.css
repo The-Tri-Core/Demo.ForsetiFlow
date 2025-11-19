@@ -1272,6 +1272,97 @@ button {
   flex-wrap: wrap;
 }
 
+.tool-card-panel {
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.tool-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.tool-card {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+  padding: 18px 22px;
+  border-radius: 18px;
+}
+
+.tool-card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tool-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tool-card-info h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.tool-card-info p {
+  margin: 0;
+  color: #a5b4fc;
+  font-size: 14px;
+}
+
+.tool-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.tool-card-number {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  min-width: 90px;
+}
+
+.tool-card-number strong {
+  font-size: 28px;
+  line-height: 1.1;
+}
+
+.tool-card-number span {
+  font-size: 12px;
+  color: #cbd5f5;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tool-card-remove {
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fca5a5;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.tool-card-remove:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .tool-chip {
   display: inline-flex;
   align-items: center;

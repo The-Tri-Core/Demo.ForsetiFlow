@@ -52,6 +52,7 @@
     const addToolBtnTop = document.getElementById("add-tool-btn-top");
     const emptyState = document.getElementById("tools-empty");
     const sections = document.getElementById("tool-sections");
+    const cardList = document.getElementById("tool-card-list");
     const chips = [document.getElementById("tool-list"), document.getElementById("tool-list-top")];
     const toolOptions = [
       { key: "tasks", label: "Task form" },
@@ -61,9 +62,17 @@
       { key: "sprints", label: "Sprints" },
       { key: "resources", label: "Resources" },
     ];
+    const toolDescriptions = {
+      tasks: "Capture tasks quickly and assign an owner.",
+      kanban: "Visualise progress across swimlanes.",
+      roadmap: "Outline upcoming quarters and initiatives.",
+      backlog: "Collect ideas and future features.",
+      sprints: "Plan focused iterations and track velocity.",
+      resources: "Monitor availability across the team.",
+    };
 
     let activeTools = [];
-    const instantiated = new Set();
+    let renderNonce = 0;
     const toolStorageKey = window.PROJECT_ID ? `pm_tools_${window.PROJECT_ID}` : null;
 
     function saveTools() {
@@ -96,9 +105,7 @@
           activeTools = list.filter((t) => t && t.key).map((t) => ({ ...t, archived: !!t.archived }));
           renderChips();
           refreshVisibility();
-          activeTools.forEach((t) => {
-            if (!t.archived) instantiateTool(t);
-          });
+          renderToolCards();
         }
       } catch (e) {
         // ignore parse errors
@@ -125,26 +132,12 @@
       });
     }
 
-    function showTools() {
-      refreshVisibility();
-      if (window.initTasks) window.initTasks();
-      if (window.initBacklogs) window.initBacklogs();
-      if (window.initSprints) window.initSprints();
-      if (window.initResources) window.initResources();
-    }
-
     function removeTool(idx) {
       const removed = activeTools.splice(idx, 1)[0];
       renderChips();
-      if (removed) {
-        const stillExists = activeTools.some((t) => t.key === removed.key && !t.archived);
-        if (!stillExists) {
-          const target = sections?.querySelector(`[data-tool="${removed.key}"]`);
-          if (target) target.classList.add("hidden-tool");
-        }
-      }
       refreshVisibility();
       saveTools();
+      renderToolCards();
     }
 
     function archiveTool(idx) {
@@ -152,13 +145,9 @@
       if (!tool) return;
       tool.archived = true;
       renderChips();
-      const hasActiveForKey = activeTools.some((t) => t.key === tool.key && !t.archived);
-      if (!hasActiveForKey) {
-        const target = sections?.querySelector(`[data-tool="${tool.key}"]`);
-        if (target) target.classList.add("hidden-tool");
-      }
       refreshVisibility();
       saveTools();
+      renderToolCards();
     }
 
     function getFirstIndexForKey(key) {
@@ -288,57 +277,202 @@
         const tool = { key, label, archived: false };
         activeTools.push(tool);
         renderChips();
-        instantiateTool(tool);
         refreshVisibility();
+        renderToolCards();
         saveTools();
         close();
       });
     }
 
-    function instantiateTool(tool) {
-      if (!tool || tool.archived) return;
-      const { key, label } = tool;
-      if (!sections) return;
-      const target = sections.querySelector(`[data-tool="${key}"]`);
-      if (!target) return;
-      if (target.classList.contains("hidden-tool")) {
-        target.classList.remove("hidden-tool");
+    async function renderToolCards() {
+      if (!cardList) return;
+      const visible = activeTools.filter((t) => !t.archived);
+      cardList.innerHTML = "";
+      if (!visible.length) return;
+
+      const loading = document.createElement("p");
+      loading.className = "muted small";
+      loading.textContent = "Loading tool insights…";
+      cardList.appendChild(loading);
+
+      const token = ++renderNonce;
+      let metrics = null;
+      try {
+        metrics = await fetchToolMetrics();
+      } catch (err) {
+        metrics = null;
       }
-      const headerTitle = target.querySelector(".panel-head h2");
-      if (headerTitle && !target.dataset.named) {
-        headerTitle.textContent = label;
-        target.dataset.named = "true";
+      if (token !== renderNonce) return;
+      cardList.innerHTML = "";
+
+      activeTools.forEach((tool, idx) => {
+        if (tool.archived) return;
+        cardList.appendChild(createToolCard(tool, metrics, idx));
+      });
+    }
+
+    async function fetchToolMetrics() {
+      const [tasks, backlogs, sprints, resources] = await Promise.all([
+        window.api(`/api/projects/${window.PROJECT_ID}/tasks`).catch(() => []),
+        window.api(`/api/backlogs/${window.PROJECT_ID}`).catch(() => []),
+        window.api(`/api/sprints/${window.PROJECT_ID}`).catch(() => []),
+        window.api(`/api/resources/${window.PROJECT_ID}`).catch(() => []),
+      ]);
+      return {
+        tasks: summarizeTasks(tasks),
+        backlog: summarizeBacklog(backlogs),
+        sprints: summarizeSprints(sprints),
+        resources: summarizeResources(resources),
+      };
+    }
+
+    function summarizeTasks(tasks) {
+      const summary = { total: tasks.length, done: 0, inProgress: 0, todo: 0, later: 0 };
+      tasks.forEach((task) => {
+        const status = (task.status || "").toLowerCase();
+        if (status === "done") summary.done += 1;
+        else if (status === "in-progress") summary.inProgress += 1;
+        else if (status === "later") summary.later += 1;
+        else summary.todo += 1;
+      });
+      return summary;
+    }
+
+    function summarizeBacklog(backlogs) {
+      const result = { total: backlogs.length, ready: 0 };
+      backlogs.forEach((item) => {
+        if ((item.status || "").toLowerCase() === "todo") result.ready += 1;
+      });
+      return result;
+    }
+
+    function summarizeSprints(sprints) {
+      const result = { total: sprints.length, active: 0 };
+      sprints.forEach((sprint) => {
+        if ((sprint.status || "").toLowerCase() === "active") result.active += 1;
+      });
+      return result;
+    }
+
+    function summarizeResources(resources) {
+      const result = { total: resources.length, free: 0 };
+      resources.forEach((res) => {
+        if ((res.status || "").toLowerCase() === "free") result.free += 1;
+      });
+      return result;
+    }
+
+    function getToolCardSummary(key, metrics) {
+      const fallback = {
+        detail: toolDescriptions[key] || "Open tool for deeper work.",
+        metricLabel: "",
+        metricValue: "",
+      };
+      if (!metrics) return fallback;
+
+      switch (key) {
+        case "tasks":
+          return {
+            detail: metrics.tasks.total
+              ? `${metrics.tasks.todo} waiting • ${metrics.tasks.inProgress} in progress`
+              : "No tasks captured yet.",
+            metricLabel: "Total tasks",
+            metricValue: String(metrics.tasks.total),
+          };
+        case "kanban":
+          return {
+            detail: metrics.tasks.total
+              ? `${metrics.tasks.done} done • ${metrics.tasks.inProgress} in progress`
+              : "No work on the board.",
+            metricLabel: "Done",
+            metricValue: metrics.tasks.total ? `${metrics.tasks.done}/${metrics.tasks.total}` : "0",
+          };
+        case "backlog":
+          return {
+            detail: metrics.backlog.total
+              ? `${metrics.backlog.ready} ready for prioritising`
+              : "No backlog items yet.",
+            metricLabel: "Ideas",
+            metricValue: String(metrics.backlog.total),
+          };
+        case "sprints":
+          return {
+            detail: metrics.sprints.total
+              ? `${metrics.sprints.active} active sprint${metrics.sprints.active === 1 ? "" : "s"}`
+              : "No sprints created.",
+            metricLabel: "Total",
+            metricValue: String(metrics.sprints.total),
+          };
+        case "resources":
+          return {
+            detail: metrics.resources.total
+              ? `${metrics.resources.free} available right now`
+              : "No resources added.",
+            metricLabel: "People",
+            metricValue: String(metrics.resources.total),
+          };
+        case "roadmap":
+          return fallback;
+        default:
+          return fallback;
+      }
+    }
+
+    function createToolCard(tool, metrics, idx) {
+      const card = document.createElement("article");
+      card.className = "tool-card glass";
+      const summary = getToolCardSummary(tool.key, metrics);
+
+      const info = document.createElement("div");
+      info.className = "tool-card-info";
+
+      const titleRow = document.createElement("div");
+      titleRow.className = "tool-card-title";
+
+      const heading = document.createElement("h3");
+      heading.textContent = tool.label;
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "tool-card-remove";
+      removeBtn.textContent = "×";
+      removeBtn.addEventListener("click", () => confirmToolAction(idx));
+
+      titleRow.append(heading, removeBtn);
+
+      const desc = document.createElement("p");
+      desc.textContent = summary.detail;
+
+      info.append(titleRow, desc);
+
+      const meta = document.createElement("div");
+      meta.className = "tool-card-meta";
+
+      if (summary.metricValue) {
+        const number = document.createElement("div");
+        number.className = "tool-card-number";
+        const strong = document.createElement("strong");
+        strong.textContent = summary.metricValue;
+        const label = document.createElement("span");
+        label.textContent = summary.metricLabel;
+        number.append(strong, label);
+        meta.append(number);
       }
 
-      const head = target.querySelector(".panel-head") || target;
-      if (head && !head.querySelector(".tool-close")) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "tool-close";
-        btn.dataset.toolKey = key;
-        btn.textContent = "×";
-        head.appendChild(btn);
-        btn.addEventListener("click", () => {
-          const idx = getFirstIndexForKey(key);
-          if (idx >= 0) confirmToolAction(idx);
-        });
-      }
+      const openLink = document.createElement("a");
+      openLink.className = "pill primary";
+      openLink.href = `/projects/${window.PROJECT_ID}/tool/${tool.key}`;
+      openLink.textContent = "Open tool";
+      meta.append(openLink);
 
-      // Only initialize each module once
-      if (!instantiated.has(key)) {
-        if (key === "tasks" && window.initTasks) window.initTasks();
-        if (key === "kanban" && window.initTasks) window.initTasks();
-        if (key === "backlog" && window.initBacklogs) window.initBacklogs();
-        if (key === "sprints" && window.initSprints) window.initSprints();
-        if (key === "resources" && window.initResources) window.initResources();
-        // roadmap static
-        instantiated.add(key);
-      }
+      card.append(info, meta);
+      return card;
     }
 
     if (addToolBtn) addToolBtn.addEventListener("click", addToolSelection);
     if (addToolBtnTop) addToolBtnTop.addEventListener("click", addToolSelection);
     loadSavedTools();
+    renderToolCards();
   };
 
   // Overview shows high-level metrics only
@@ -399,7 +533,7 @@
 
       const stored = readStoredTools();
       const active = (stored || []).filter((t) => t && t.key && !t.archived);
-      if (!activeTools.length) {
+      if (!active.length) {
         empty.style.display = "";
         return;
       }
@@ -450,7 +584,7 @@
         }),
       };
 
-      activeTools.forEach((tool) => {
+      active.forEach((tool) => {
         const builder = summaryBuilders[tool.key];
         if (!builder) return;
         const info = builder();
