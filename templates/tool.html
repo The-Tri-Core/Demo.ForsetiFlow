@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ tool|capitalize }} | Project Tools</title>
+  <link rel="stylesheet" href="/static/main.css" />
+</head>
+<body>
+  <div class="gradient-bg"></div>
+
+  <main class="workspace project-page dashboard-page">
+    <section class="panel project-header">
+      <div>
+        <p class="eyebrow">Tool</p>
+        <h1>{{ tool|capitalize }}</h1>
+        <p class="project-desc">Focused view for this tool. Switch back to dashboard for combined flow.</p>
+      </div>
+      <div class="project-actions">
+        <a class="pill ghost" href="/projects/{{ project.id }}">Full Flow</a>
+        <a class="pill primary" href="/projects/{{ project.id }}/dashboard">Minimized Flow</a>
+      </div>
+    </section>
+
+    <section class="panel form-panel hidden-tool" data-tool="tasks">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Tasks</p>
+          <h2>Add Task</h2>
+        </div>
+      </div>
+      <form id="task-form" class="form-grid" autocomplete="off">
+        <label>
+          <span>Task</span>
+          <input type="text" name="title" required placeholder="Add a task" />
+        </label>
+        <label>
+          <span>Status</span>
+          <select name="status">
+            <option value="todo">To do</option>
+            <option value="in-progress">In progress</option>
+            <option value="done">Done</option>
+            <option value="later">Later</option>
+          </select>
+        </label>
+        <label>
+          <span>Parent task ID (optional)</span>
+          <input type="number" name="parent_id" min="1" placeholder="e.g., 12" />
+        </label>
+        <label>
+          <span>Assignee (optional)</span>
+          <select name="resource_id" id="task-resource-select">
+            <option value="">Unassigned</option>
+          </select>
+        </label>
+        <label>
+          <span>Due</span>
+          <input type="date" name="due_date" />
+        </label>
+        <button type="submit" class="pill primary">Add Task</button>
+      </form>
+    </section>
+
+    <section class="panel tasks-panel hidden-tool" data-tool="kanban">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Board</p>
+          <h2>Kanban</h2>
+        </div>
+      </div>
+      <div class="kanban">
+        <div class="kanban-column">
+          <div class="kanban-head">To do</div>
+          <div class="kanban-list" id="col-todo"></div>
+        </div>
+        <div class="kanban-column">
+          <div class="kanban-head">In progress</div>
+          <div class="kanban-list" id="col-in-progress"></div>
+        </div>
+        <div class="kanban-column">
+          <div class="kanban-head">Done</div>
+          <div class="kanban-list" id="col-done"></div>
+        </div>
+        <div class="kanban-column">
+          <div class="kanban-head">Later</div>
+          <div class="kanban-list" id="col-later"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel roadmap-panel hidden-tool" data-tool="roadmap">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Roadmaps</p>
+          <h2>What's coming</h2>
+          <p class="muted small">
+            High-level themes by quarter - not tasks. Focus, next quarter priorities, and big-picture direction.
+          </p>
+        </div>
+      </div>
+      <div class="roadmap-grid">
+        <article class="roadmap-card glass">
+          <header>
+            <h3>Q1 Focus</h3>
+            <span class="pill badge">Now</span>
+          </header>
+          <div class="roadmap-body" contenteditable="true" data-placeholder="Click to add themes, epics, initiatives for Q1"></div>
+        </article>
+        <article class="roadmap-card glass">
+          <header>
+            <h3>Q2 Direction</h3>
+            <span class="pill badge">Next</span>
+          </header>
+          <div class="roadmap-body" contenteditable="true" data-placeholder="Click to add themes, epics, initiatives for Q2"></div>
+        </article>
+        <article class="roadmap-card glass">
+          <header>
+            <h3>Q3 Outlook</h3>
+            <span class="pill badge">Later</span>
+          </header>
+          <div class="roadmap-body" contenteditable="true" data-placeholder="Click to add themes, epics, initiatives for Q3"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel backlog-panel hidden-tool" data-tool="backlog">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Backlogs</p>
+          <h2>Ideas & Future Features</h2>
+          <p class="muted small">Where all ideas, requests, and future work live-organised by priority, status, and tags.</p>
+        </div>
+      </div>
+      <div class="backlog-filters">
+        <label>
+          <span>Status</span>
+          <select id="backlog-filter-status">
+            <option value="">All</option>
+            <option value="todo">To do</option>
+            <option value="in-progress">In Progress</option>
+            <option value="later">Later Development</option>
+          </select>
+        </label>
+        <label>
+          <span>Priority</span>
+          <select id="backlog-filter-priority">
+            <option value="">All</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </label>
+        <label>
+          <span>Tag</span>
+          <input type="text" id="backlog-filter-tag" placeholder="Filter by tag" />
+        </label>
+      </div>
+      <div class="backlog-grid">
+        <article class="backlog-card glass">
+          <header>
+            <h3>New backlog item</h3>
+          </header>
+          <form id="backlog-form" class="backlog-fields" autocomplete="off">
+            <label class="backlog-field">
+              <span>Title</span>
+              <input name="title" type="text" required placeholder="Idea / request" />
+            </label>
+            <label class="backlog-field">
+              <span>Priority</span>
+              <select name="priority">
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="low">Low</option>
+              </select>
+            </label>
+        <label class="backlog-field">
+          <span>Status</span>
+          <select name="status">
+            <option value="todo">To do</option>
+            <option value="in-progress">In Progress</option>
+            <option value="later">Later Development</option>
+          </select>
+        </label>
+        <label class="backlog-field">
+          <span>Tags (comma separated)</span>
+          <input name="tags" type="text" placeholder="e.g., Growth, UX, API" />
+        </label>
+        <label class="backlog-field">
+          <span>Parent backlog ID (optional)</span>
+          <input name="parent_id" type="number" min="1" placeholder="e.g., 5" />
+        </label>
+        <label class="backlog-field">
+          <span>Assignee (optional)</span>
+          <select name="resource_id" id="backlog-resource-select">
+            <option value="">Unassigned</option>
+          </select>
+        </label>
+        <button type="submit" class="pill primary">Add to backlog</button>
+      </form>
+    </article>
+        <article class="backlog-card glass backlog-board">
+          <header>
+            <h3>Backlog items</h3>
+          </header>
+          <div id="backlog-list" class="backlog-list"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel sprint-panel hidden-tool" data-tool="sprints">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Sprints</p>
+          <h2>Short, focused cycles</h2>
+          <p class="muted small">Plan and track 1-2 week sprints with status, velocity, scope, and burn-down progress.</p>
+        </div>
+      </div>
+      <div class="sprint-grid">
+        <article class="sprint-card glass">
+          <h3>Create sprint</h3>
+          <form id="sprint-form" class="sprint-fields" autocomplete="off">
+            <label>
+              <span>Name</span>
+              <input type="text" name="name" required placeholder="Sprint 12" />
+            </label>
+            <label>
+              <span>Status</span>
+              <select name="status">
+                <option value="planned">Planned</option>
+                <option value="active">Active</option>
+                <option value="done">Done</option>
+              </select>
+            </label>
+            <label>
+              <span>Start</span>
+              <input type="date" name="start_date" />
+            </label>
+            <label>
+              <span>End</span>
+              <input type="date" name="end_date" />
+            </label>
+            <label>
+              <span>Velocity (pts)</span>
+              <input type="number" name="velocity" min="0" value="0" />
+            </label>
+            <label>
+              <span>Scope (pts)</span>
+              <input type="number" name="scope_points" min="0" value="0" />
+            </label>
+            <label>
+              <span>Done (pts)</span>
+              <input type="number" name="done_points" min="0" value="0" />
+            </label>
+            <label>
+              <span>Notes</span>
+              <textarea name="notes" rows="2" placeholder="Sprint goal, risks, blockers"></textarea>
+            </label>
+            <button type="submit" class="pill primary">Create sprint</button>
+          </form>
+        </article>
+        <article class="sprint-card glass">
+          <header class="sprint-head">
+            <div>
+              <h3>Active sprints</h3>
+              <p class="muted small">Drag to reorder by focus; inline edit fields.</p>
+            </div>
+          </header>
+          <div id="sprint-list" class="sprint-list"></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel resource-panel hidden-tool" data-tool="resources">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Resources</p>
+          <h2>Engineers & availability</h2>
+          <p class="muted small">Optional: track who is free, overloaded, or on holiday, and assign to tasks/backlogs.</p>
+        </div>
+      </div>
+      <div class="resource-grid">
+        <article class="resource-card glass">
+          <h3>Add resource</h3>
+          <form id="resource-form" class="resource-fields" autocomplete="off">
+            <label>
+              <span>Name</span>
+              <input type="text" name="name" required placeholder="Engineer name" />
+            </label>
+            <label>
+              <span>Status</span>
+              <select name="status">
+                <option value="free">Free</option>
+                <option value="overloaded">Overloaded</option>
+                <option value="holiday">On holiday</option>
+              </select>
+            </label>
+            <label>
+              <span>Notes</span>
+              <input type="text" name="notes" placeholder="Optional notes" />
+            </label>
+            <button type="submit" class="pill primary">Add resource</button>
+          </form>
+        </article>
+        <article class="resource-card glass">
+          <header class="resource-head">
+            <div>
+              <h3>People</h3>
+              <p class="muted small">Update status inline; delete if not needed.</p>
+            </div>
+          </header>
+          <div id="resource-list" class="resource-list"></div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <template id="kanban-card-template">
+    <div class="kanban-card glass" draggable="true">
+      <div class="kanban-top">
+        <div class="kanban-title-group">
+          <div class="kanban-title"></div>
+          <div class="kanban-parent muted"></div>
+        </div>
+        <div class="kanban-top-actions">
+          <span class="collapsed-due pill ghost tiny" hidden></span>
+          <button class="pill ghost tiny collapse-toggle" type="button" aria-expanded="true" title="Collapse card">-</button>
+        </div>
+      </div>
+      <div class="kanban-meta">
+        <div class="meta-summary">
+          <div class="summary-row">
+            <span class="meta-label">Assignee</span>
+            <span class="task-assignee-display pill ghost tiny">Unassigned</span>
+          </div>
+          <div class="summary-desc">
+            <span class="meta-label">Description</span>
+            <p class="task-desc-display muted small">No description</p>
+          </div>
+        </div>
+      </div>
+      <div class="kanban-footer">
+        <div class="due-slot">
+          <label class="due-field">
+            <span>Due</span>
+            <input class="task-due" type="date" />
+          </label>
+          <div class="due-empty">
+            <span class="muted">No due date</span>
+            <button class="pill ghost tiny set-due" type="button">Set date</button>
+          </div>
+        </div>
+        <button class="pill ghost tiny meta-toggle" type="button" aria-expanded="false" title="Edit task details">&#9881;</button>
+      </div>
+      <div class="meta-panel">
+        <label class="assignee-field">
+          <span>Assignee</span>
+          <select class="task-resource">
+            <option value="">Unassigned</option>
+          </select>
+        </label>
+        <label>
+          <span>Description</span>
+          <textarea class="task-desc" rows="3" placeholder="Add a short note"></textarea>
+        </label>
+        <div class="kanban-actions">
+          <button class="task-delete pill danger" title="Delete">?</button>
+          <button class="task-save pill ghost">Save</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script>window.PROJECT_ID = "{{ project.id }}"; window.TOOL_KEY = "{{ tool }}";</script>
+  <script src="/static/api.js"></script>
+  <script src="/static/tasks.js"></script>
+  <script src="/static/backlog.js"></script>
+  <script src="/static/sprint.js"></script>
+  <script src="/static/resource.js"></script>
+  <script src="/static/project.js"></script>
+  <script>
+    if (window.initToolPage) window.initToolPage();
+  </script>
+  <a class="signature-mark" href="https://github.com/Njordics" target="_blank" rel="noreferrer noopener">
+    <img src="/static/NjordSig.png" alt="Njord signature" />
+  </a>
+</body>
+</html>

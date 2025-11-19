@@ -176,6 +176,18 @@ def project_page(project_id: str):
     project = require_project(project_id)
     return render_template("project.html", project=project)
 
+@app.route("/projects/<project_id>/dashboard")
+def project_dashboard(project_id: str):
+    init_db()
+    project = require_project(project_id)
+    return render_template("dashboard.html", project=project)
+
+@app.route("/projects/<project_id>/tool/<tool_key>")
+def project_tool_page(project_id: str, tool_key: str):
+    init_db()
+    project = require_project(project_id)
+    return render_template("tool.html", project=project, tool=tool_key)
+
 
 @app.route("/api/projects", methods=["GET"])
 def list_projects():
