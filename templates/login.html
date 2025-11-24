@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Forseti Flow Login</title>
+    <link rel="stylesheet" href="/static/main.css" />
+    <script src="/static/login.js" defer></script>
+  </head>
+  <body>
+    <div class="gradient-bg"></div>
+    <main class="login-page">
+      <article class="login-card">
+        <div>
+          <p class="eyebrow">Forseti Flow</p>
+          <h1>Secure project control</h1>
+          <p class="lede">Sign in and double-check with Authy before you manage your workspaces.</p>
+        </div>
+        <form id="login-form" class="login-form" autocomplete="off">
+          <label>
+            <span>Username or email</span>
+            <input
+              type="text"
+              name="identifier"
+              autocomplete="username"
+              placeholder="admin"
+              required
+            />
+          </label>
+          <label>
+            <span>Password</span>
+            <input type="password" name="password" placeholder="••••••••" required />
+          </label>
+          <button type="submit" class="pill primary">Send verification code</button>
+        </form>
+        <form id="verification-form" class="login-form hidden" autocomplete="off">
+          <label>
+            <span>Authentication code</span>
+            <input
+              id="login-code"
+              type="text"
+              name="code"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              placeholder="123456"
+              autocomplete="one-time-code"
+              required
+            />
+          </label>
+          <div class="login-actions">
+            <button type="button" id="back-to-login" class="pill ghost">Use different credentials</button>
+            <button type="submit" class="pill primary">Verify code</button>
+          </div>
+          <button type="button" id="resend-code" class="pill ghost">Resend code</button>
+        </form>
+        <div id="login-status" class="login-status muted" aria-live="polite"></div>
+        <p class="muted login-hint">
+          Authy protects this workspace with two-step verification. Admins can configure numbers before you sign in.
+        </p>
+        <a class="pill ghost login-guest" href="/app">Continue without login</a>
+      </article>
+    </main>
+  </body>
+</html>

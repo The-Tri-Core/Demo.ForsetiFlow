@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Forseti Flow Account</title>
+    <link rel="stylesheet" href="/static/main.css" />
+  </head>
+  <body>
+    <div class="gradient-bg"></div>
+    <main class="login-page">
+      <article class="login-card">
+        <div>
+          <p class="eyebrow">Forseti Flow</p>
+          <h1>Secure your account</h1>
+          <p class="lede">
+            {% if requires_update %}
+            As part of the onboarding step, choose a new username or password before continuing.
+            {% else %}
+            Update your username, email, or password whenever you need to rotate credentials.
+            {% endif %}
+          </p>
+        </div>
+        {% if error %}
+        <p class="login-status error">{{ error }}</p>
+        {% endif %}
+        <form method="post" class="login-form" autocomplete="off">
+          <label>
+            <span>Username</span>
+            <input
+              type="text"
+              name="username"
+              value="{{ user.username }}"
+              required
+              autocomplete="username"
+            />
+          </label>
+          <label>
+            <span>Email (optional)</span>
+            <input
+              type="email"
+              name="email"
+              value="{{ user.email or '' }}"
+              autocomplete="email"
+            />
+          </label>
+          <label>
+            <span>New password</span>
+            <input
+              type="password"
+              name="password"
+              placeholder="Leave blank to keep current"
+              autocomplete="new-password"
+            />
+          </label>
+          <label>
+            <span>Confirm new password</span>
+            <input type="password" name="confirm_password" autocomplete="new-password" />
+          </label>
+          <button type="submit" class="pill primary">
+            {% if requires_update %}Save & Continue{% else %}Save changes{% endif %}
+          </button>
+        </form>
+        <a class="pill ghost login-guest" href="/logout">Log out</a>
+      </article>
+    </main>
+  </body>
+</html>

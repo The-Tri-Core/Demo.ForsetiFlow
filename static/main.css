@@ -34,6 +34,87 @@ body {
   z-index: 0;
 }
 
+.login-page {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 32px;
+}
+
+.login-card {
+  width: min(480px, 100%);
+  padding: 36px;
+  border-radius: 24px;
+  display: grid;
+  gap: 18px;
+  background: rgba(6, 9, 22, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.55);
+}
+
+.login-card h1 {
+  margin: 4px 0 14px;
+  font-size: 32px;
+  line-height: 1.2;
+}
+
+.login-card .lede {
+  margin: 0;
+  color: #cbd5f5;
+}
+
+.login-form {
+  display: grid;
+  gap: 16px;
+}
+
+.login-form label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.login-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.login-status {
+  min-height: 18px;
+  font-size: 13px;
+}
+
+.login-status.error {
+  color: #fca5a5;
+}
+
+.login-hint {
+  margin: 0;
+  font-size: 13px;
+}
+
+.login-guest {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .login-page {
+    padding: 24px;
+  }
+
+  .login-card {
+    padding: 28px;
+  }
+}
+
 .signature-mark {
   position: fixed;
   right: 18px;
@@ -109,8 +190,9 @@ body {
   grid-template-columns: minmax(0, 1fr);
   gap: 32px;
   padding: 60px 56px 20px;
-  max-width: 1180px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .hero.solo {
@@ -180,9 +262,10 @@ body {
 .workspace {
   position: relative;
   z-index: 1;
-  max-width: 1180px;
-  margin: 10px auto 40px;
-  padding: 0 24px 48px;
+  width: 100%;
+  max-width: none;
+  margin: 10px 0 40px;
+  padding: 0 32px 48px;
   display: grid;
   gap: 16px;
 }
@@ -1172,16 +1255,14 @@ button {
 }
 
 .dashboard-page.workspace {
-  max-width: 1180px;
   width: 100%;
-  margin: 10px auto 40px;
-  padding: 0 24px 48px;
+  margin: 10px 0 40px;
+  padding: 0 32px 48px;
 }
 
 .kanban-fullpage.workspace {
-  max-width: 100%;
   width: 100%;
-  margin: 0 auto 40px;
+  margin: 0 0 40px;
   padding: 0 32px 48px;
 }
 
