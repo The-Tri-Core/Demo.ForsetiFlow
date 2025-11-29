@@ -5,7 +5,6 @@ import secrets
 import shutil
 import sqlite3
 import tempfile
-
 import pyotp
 import qrcode
 from authlib.integrations.base_client.errors import OAuthError
@@ -209,40 +208,8 @@ def _generate_mfa_qr(secret: str, label: str) -> str:
 
 
 def _ensure_default_user(db):
-    password_hash = generate_password_hash(DEFAULT_ADMIN_PASSWORD)
-    db.execute("DELETE FROM users WHERE username != ?", (DEFAULT_ADMIN_USERNAME,))
-    existing = db.execute("SELECT id FROM users WHERE username = ?", (DEFAULT_ADMIN_USERNAME,)).fetchone()
-    if existing:
-        db.execute(
-            """
-            UPDATE users
-            SET password_hash = ?, phone_number = ?, country_code = ?, email = ?, must_update_credentials = 1, is_admin = 1, mfa_secret = ''
-            WHERE username = ?
-            """,
-            (
-                password_hash,
-                DEFAULT_ADMIN_PHONE,
-                DEFAULT_ADMIN_COUNTRY,
-                DEFAULT_ADMIN_EMAIL or None,
-                DEFAULT_ADMIN_USERNAME,
-            ),
-        )
-        return existing["id"]
-        user_id = cur.lastrowid
-        return user_id
-    else:
-        db.execute(
-            "INSERT INTO users (email, username, password_hash, phone_number, country_code, must_update_credentials, is_admin, mfa_secret) VALUES (?, ?, ?, ?, ?, 1, 1, '')",
-            (
-                DEFAULT_ADMIN_EMAIL or None,
-                DEFAULT_ADMIN_USERNAME,
-                password_hash,
-                DEFAULT_ADMIN_PHONE,
-                DEFAULT_ADMIN_COUNTRY,
-            ),
-        )
-        user_id = db.execute("SELECT id FROM users WHERE username = ?", (DEFAULT_ADMIN_USERNAME,)).fetchone()["id"]
-        return user_id
+    # Default bootstrap user is no longer needed; keep as no-op.
+    return
 
 
 def login_required(view):
@@ -408,15 +375,6 @@ def init_db():
     _ensure_default_user(db)
     db.commit()
 
-
-@app.errorhandler(403)
-def handle_forbidden(e):
-    if request.is_json or request.headers.get("Accept", "").startswith("application/json"):
-        response = jsonify({"error": str(e.description or e)})
-        response.status_code = 403
-        return response
-    return e
-
 with app.app_context():
     init_db()
 
@@ -455,23 +413,25 @@ def get_user_by_id(user_id: int):
     ).fetchone()
 
 
-def _generate_reset_pin():
-    return "{:06d}".format(secrets.randbelow(1_000_000))
-
-
 def render_login_view():
     init_db()
     oauth_error = session.pop("oauth_error", None)
     allow_registration = _get_user_count() == 0
-    reset_pin = session.get("reset_pin") or _generate_reset_pin()
-    session["reset_pin"] = reset_pin
-    app.logger.info("Reset pin for login session: %s", reset_pin)
+    # If no users exist, generate a pending MFA secret and QR for setup
+    pending_mfa_secret = session.get("pending_mfa_secret")
+    if allow_registration and not pending_mfa_secret:
+        pending_mfa_secret = pyotp.random_base32()
+        session["pending_mfa_secret"] = pending_mfa_secret
+    mfa_qr = None
+    if allow_registration and pending_mfa_secret:
+        label = DEFAULT_ADMIN_USERNAME
+        mfa_qr = _generate_mfa_qr(pending_mfa_secret, label)
     return render_template(
         "login.html",
         oauth_providers=_get_available_oauth_providers(),
         oauth_error=oauth_error,
         allow_registration=allow_registration,
-        reset_pin=reset_pin,
+        mfa_qr=mfa_qr,
     )
 
 
@@ -480,7 +440,22 @@ def render_login_view():
 def login_page():
     if session.get("user_id"):
         return redirect(url_for("index_page"))
+    if _get_user_count() == 0:
+        return redirect(url_for("setup_page"))
     return render_login_view()
+
+@app.route("/setup")
+def setup_page():
+    init_db()
+    if _get_user_count():
+        return redirect(url_for("login_page"))
+    # Ensure a pending secret and QR are available
+    pending_mfa_secret = session.get("pending_mfa_secret")
+    if not pending_mfa_secret:
+        pending_mfa_secret = pyotp.random_base32()
+        session["pending_mfa_secret"] = pending_mfa_secret
+    mfa_qr = _generate_mfa_qr(pending_mfa_secret, DEFAULT_ADMIN_USERNAME)
+    return render_template("setup.html", mfa_qr=mfa_qr)
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -717,25 +692,28 @@ def create_user():
 @app.route("/api/auth/start", methods=["POST"])
 def start_login():
     init_db()
-    data = request.get_json(silent=True) or {}
-    identifier = (data.get("identifier") or "").strip()
-    password = (data.get("password") or "").strip()
-    totp_code = (data.get("totp_code") or "").strip()
-    if not (identifier and password):
-        abort(400, "Username/email and password are required.")
+    # Deprecated: password-based login removed. Keep endpoint but fail clearly.
+    abort(400, "Password login is disabled. Use TOTP-only login.")
 
-    user = get_user_by_identifier(identifier)
-    if user is None or not check_password_hash(user["password_hash"], password):
-        abort(401, "Invalid credentials.")
-    if user["mfa_secret"]:
-        if not totp_code:
-            abort(401, "Authenticator code is required.")
-        totp = pyotp.TOTP(user["mfa_secret"])
-        if not totp.verify(totp_code, valid_window=1):
-            abort(401, "Invalid authenticator code.")
-    session["user_id"] = user["id"]
-    needs_update = bool(user["must_update_credentials"])
-    if needs_update:
+@app.route("/api/auth/totp-login", methods=["POST"])
+def totp_login():
+    init_db()
+    data = request.get_json(silent=True) or {}
+    totp_code = (data.get("totp_code") or "").strip()
+    if not totp_code:
+        abort(400, "Authenticator code is required.")
+    db = get_db()
+    row = db.execute("SELECT id, mfa_secret, must_update_credentials FROM users ORDER BY id LIMIT 1").fetchone()
+    if not row:
+        abort(404, "No user configured. Set up the authenticator first.")
+    secret = row["mfa_secret"] or ""
+    if not secret:
+        abort(409, "Authenticator not configured. Open the account page to set it up.")
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(totp_code, valid_window=1):
+        abort(401, "Invalid authenticator code.")
+    session["user_id"] = row["id"]
+    if bool(row["must_update_credentials"]):
         session["needs_update"] = True
         target = "/account"
     else:
@@ -743,40 +721,35 @@ def start_login():
         target = "/app"
     return jsonify({"redirect": target})
 
-
-@app.route("/api/reset-pin", methods=["POST"])
-def reset_pin():
+@app.route("/api/auth/setup-first", methods=["POST"])
+def setup_first_user():
     init_db()
-    data = request.get_json(silent=True) or {}
-    pin = (data.get("pin") or "").strip()
-    expected = session.get("reset_pin")
-    if not expected or pin != expected:
-        new_pin = _generate_reset_pin()
-        session["reset_pin"] = new_pin
-        app.logger.warning("Invalid reset pin provided; regenerating new pin %s", new_pin)
-        abort(403, "Invalid reset pin. A new pin has been generated.")
     db = get_db()
-    user_id = _ensure_default_user(db)
-    db.commit()
-    session.pop("reset_pin", None)
-    session["user_id"] = user_id
-    session["needs_update"] = True
-    return jsonify({"redirect": "/account"})
-
-
-@app.route("/api/reset-account", methods=["POST"])
-def reset_account():
-    init_db()
+    count = db.execute("SELECT COUNT(*) as total FROM users").fetchone()["total"]
+    if count:
+        abort(409, "User already exists.")
     data = request.get_json(silent=True) or {}
-    pin = (data.get("pin") or "").strip()
-    expected = session.get("reset_pin")
-    if not expected or pin != expected:
-        abort(403, "Invalid reset pin.")
-    db = get_db()
-    _ensure_default_user(db)
+    totp_code = (data.get("totp_code") or "").strip()
+    pending_secret = session.get("pending_mfa_secret") or ""
+    if not pending_secret:
+        # Generate and hold a secret for setup flow
+        pending_secret = pyotp.random_base32()
+        session["pending_mfa_secret"] = pending_secret
+        abort(409, "Setup secret generated. Refresh and scan the QR, then submit the code.")
+    if not totp_code:
+        abort(400, "Enter the authenticator code from your app.")
+    if not pyotp.TOTP(pending_secret).verify(totp_code, valid_window=1):
+        abort(401, "Invalid authenticator code.")
+    # Create a single admin user with no password requirements
+    db.execute(
+        "INSERT INTO users (email, username, password_hash, phone_number, country_code, must_update_credentials, is_admin, mfa_secret) VALUES (?, ?, ?, ?, ?, 0, 1, ?)",
+        (None, DEFAULT_ADMIN_USERNAME, "", "", "", pending_secret),
+    )
     db.commit()
-    session.pop("reset_pin", None)
-    return jsonify({"success": True, "message": "Workspace reset to default account. Use the default credentials to log in."})
+    user = db.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()
+    session["user_id"] = user["id"]
+    session.pop("pending_mfa_secret", None)
+    return jsonify({"redirect": "/app"})
 
 
 @app.route("/projects/<project_id>")
@@ -845,7 +818,7 @@ def list_tasks(project_id: str):
     db = get_db()
     rows = db.execute(
         """
-        SELECT id, project_id, title, description, status, due_date, parent_id, resource_id
+        SELECT id, project_id, title, description, status, due_date, parent_id
         FROM tasks
         WHERE project_id = ?
         ORDER BY id
@@ -872,14 +845,12 @@ def create_task(project_id: str):
     parent_id = data.get("parent_id")
     if parent_id in ("", None):
         parent_id = None
-    resource_id = data.get("resource_id")
-    if resource_id in ("", None):
-        resource_id = None
+    # Single-user mode: ignore assignee/resource
 
     db = get_db()
     cur = db.execute(
-        "INSERT INTO tasks (project_id, title, description, status, due_date, parent_id, resource_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (project_id, title, description, status, due_date, parent_id, resource_id),
+        "INSERT INTO tasks (project_id, title, description, status, due_date, parent_id) VALUES (?, ?, ?, ?, ?, ?)",
+        (project_id, title, description, status, due_date, parent_id),
     )
     db.commit()
     task_id = cur.lastrowid
@@ -892,7 +863,6 @@ def create_task(project_id: str):
                 "description": description,
                 "status": status,
                 "due_date": due_date,
-                "resource_id": resource_id,
                 "parent_id": parent_id,
             }
         ),
@@ -906,7 +876,7 @@ def update_task(task_id: str):
     init_db()
     db = get_db()
     task = db.execute(
-        "SELECT id, project_id, title, description, status, due_date, parent_id, resource_id FROM tasks WHERE id = ?",
+        "SELECT id, project_id, title, description, status, due_date, parent_id FROM tasks WHERE id = ?",
         (task_id,),
     ).fetchone()
     if not task:
@@ -932,15 +902,11 @@ def update_task(task_id: str):
         if parent_id in ("", None):
             parent_id = None
         db.execute("UPDATE tasks SET parent_id = ? WHERE id = ?", (parent_id, task_id))
-    if "resource_id" in data:
-        resource_id = data.get("resource_id")
-        if resource_id in ("", None):
-            resource_id = None
-        db.execute("UPDATE tasks SET resource_id = ? WHERE id = ?", (resource_id, task_id))
+    # Ignore resource updates in single-user mode
 
     db.commit()
     updated = db.execute(
-        "SELECT id, project_id, title, description, status, due_date, parent_id, resource_id FROM tasks WHERE id = ?",
+        "SELECT id, project_id, title, description, status, due_date, parent_id FROM tasks WHERE id = ?",
         (task_id,),
     ).fetchone()
     return jsonify(dict(updated))
@@ -953,7 +919,7 @@ def list_backlogs(project_id: str):
     require_project(project_id)
     db = get_db()
     rows = db.execute(
-        "SELECT id, project_id, title, priority, status, tags, parent_id, resource_id FROM backlogs WHERE project_id = ? ORDER BY id DESC",
+        "SELECT id, project_id, title, priority, status, tags, parent_id FROM backlogs WHERE project_id = ? ORDER BY id DESC",
         (project_id,),
     ).fetchall()
     return jsonify([dict(r) for r in rows])
@@ -978,14 +944,12 @@ def create_backlog(project_id: str):
     parent_id = data.get("parent_id")
     if parent_id in ("", None):
         parent_id = None
-    resource_id = data.get("resource_id")
-    if resource_id in ("", None):
-        resource_id = None
+    # Single-user mode: ignore assignee/resource
 
     db = get_db()
     cur = db.execute(
-        "INSERT INTO backlogs (project_id, title, priority, status, tags, parent_id, resource_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (project_id, title, priority, status, tags, parent_id, resource_id),
+        "INSERT INTO backlogs (project_id, title, priority, status, tags, parent_id) VALUES (?, ?, ?, ?, ?, ?)",
+        (project_id, title, priority, status, tags, parent_id),
     )
     db.commit()
     backlog_id = cur.lastrowid
@@ -999,7 +963,6 @@ def create_backlog(project_id: str):
                 "status": status,
                 "tags": tags,
                 "parent_id": parent_id,
-                "resource_id": resource_id,
             }
         ),
         201,
@@ -1012,7 +975,7 @@ def update_backlog(item_id: str):
     init_db()
     db = get_db()
     row = db.execute(
-        "SELECT id, project_id, title, priority, status, tags, parent_id, resource_id FROM backlogs WHERE id = ?",
+        "SELECT id, project_id, title, priority, status, tags, parent_id FROM backlogs WHERE id = ?",
         (item_id,),
     ).fetchone()
     if not row:
@@ -1040,16 +1003,7 @@ def update_backlog(item_id: str):
         if parent_id in ("", None):
             parent_id = None
         fields["parent_id"] = parent_id
-    if "resource_id" in data:
-        resource_id = data.get("resource_id")
-        if resource_id in ("", None):
-            resource_id = None
-        fields["resource_id"] = resource_id
-    if "resource_id" in data:
-        resource_id = data.get("resource_id")
-        if resource_id in ("", None):
-            resource_id = None
-        fields["resource_id"] = resource_id
+    # Ignore resource updates in single-user mode
 
     if fields:
         sets = ", ".join(f"{k} = ?" for k in fields.keys())
@@ -1057,7 +1011,7 @@ def update_backlog(item_id: str):
         db.commit()
 
     updated = db.execute(
-        "SELECT id, project_id, title, priority, status, tags, parent_id, resource_id FROM backlogs WHERE id = ?",
+        "SELECT id, project_id, title, priority, status, tags, parent_id FROM backlogs WHERE id = ?",
         (item_id,),
     ).fetchone()
     return jsonify(dict(updated))

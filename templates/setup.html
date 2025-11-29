@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Forseti Flow Setup</title>
+    <link rel="stylesheet" href="/static/main.css" />
+    <script src="/static/setup.js" defer></script>
+  </head>
+  <body>
+    <div class="gradient-bg"></div>
+    <a class="brand-logo" href="/">
+      <img src="/static/ForsetiLogo.png" alt="Forseti Flow logo" />
+    </a>
+    <main class="login-page">
+      <article class="login-card">
+        <div>
+          <p class="eyebrow">Forseti Flow</p>
+          <h1>First-time setup</h1>
+          <p class="lede">Scan the QR with Google or Microsoft Authenticator, then enter the 6-digit code to create the single user.</p>
+        </div>
+        <div class="qr-wrap" style="display:flex;justify-content:center;margin:16px 0;">
+          <img src="{{ mfa_qr }}" alt="Scan to set up authenticator" style="max-width:240px;border-radius:8px" />
+        </div>
+        <form id="setup-form" class="login-form" autocomplete="off">
+          <label>
+            <span>Authenticator code</span>
+            <input type="text" name="totp_code" inputmode="numeric" pattern="[0-9]*" placeholder="123456" autocomplete="one-time-code" required />
+          </label>
+          <button type="submit" class="pill primary">Complete setup</button>
+        </form>
+        <div id="setup-status" class="login-status muted" aria-live="polite"></div>
+      </article>
+    </main>
+  </body>
+</html>

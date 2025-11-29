@@ -6,6 +6,7 @@
     later: "Later Development",
   };
   const state = { items: [], filters: { status: "", priority: "", tag: "" } };
+  // Single-user mode: no resources/assignees
   let resources = [];
 
   async function loadBacklogs() {
@@ -98,13 +99,10 @@
 
       const resWrap = document.createElement("div");
       resWrap.className = "backlog-meta";
-      const resSelect = document.createElement("select");
-      setResourceOptions(resSelect, item.resource_id);
-      resSelect.addEventListener("change", () => quickUpdate(item.id, { resource_id: resSelect.value || null }));
       const resLabel = document.createElement("span");
       resLabel.className = "badge";
-      resLabel.textContent = item.resource_id ? resourceName(item.resource_id) : "Unassigned";
-      resWrap.append(resLabel, resSelect);
+      resLabel.textContent = "Owner: You";
+      resWrap.append(resLabel);
 
       const tagsWrap = document.createElement("div");
       tagsWrap.className = "backlog-meta";
@@ -235,7 +233,9 @@
     const backlogForm = document.getElementById("backlog-form");
     if (!backlogForm) return;
     const resSelect = document.getElementById("backlog-resource-select");
-    setResourceOptions(resSelect, "");
+    if (resSelect) {
+      resSelect.classList.add("hidden");
+    }
     backlogForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const data = new FormData(backlogForm);
@@ -245,30 +245,11 @@
     });
   }
 
-  function setResourceOptions(selectEl, selectedId) {
-    if (!selectEl) return;
-    selectEl.innerHTML = "";
-    const base = document.createElement("option");
-    base.value = "";
-    base.textContent = "Unassigned";
-    selectEl.append(base);
-    resources.forEach((res) => {
-      const o = document.createElement("option");
-      o.value = res.id;
-      o.textContent = `${res.name} (${res.status})`;
-      if (String(selectedId || "") === String(res.id)) o.selected = true;
-      selectEl.append(o);
-    });
-  }
+  function setResourceOptions() { /* no-op single-user */ }
 
-  function resourceName(id) {
-    const found = resources.find((r) => String(r.id) === String(id));
-    return found ? found.name : "Unassigned";
-  }
+  function resourceName() { return "You"; }
 
-  function onResourcesUpdate(list) {
-    resources = list || [];
-    setResourceOptions(document.getElementById("backlog-resource-select"), "");
+  function onResourcesUpdate() {
     renderBacklogs();
   }
 

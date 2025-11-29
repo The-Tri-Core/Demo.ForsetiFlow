@@ -43,29 +43,41 @@
     return parsed.json || {};
   }
 
-  const extractCredentials = () => {
+  const extractTotp = () => {
     if (!loginForm) return null;
     const data = Object.fromEntries(new FormData(loginForm).entries());
-    const identifier = (data.identifier || "").trim();
-    const password = data.password || "";
     const totp_code = (data.totp_code || "").trim();
-    if (!identifier || !password) {
-      setStatus("Username/email and password are required.", "error");
+    if (!totp_code) {
+      setStatus("Authenticator code is required.", "error");
       return null;
     }
-    return { identifier, password, totp_code };
+    return { totp_code };
   };
 
   loginForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const credentials = extractCredentials();
-    if (!credentials) return;
+    const payload = extractTotp();
+    if (!payload) return;
     try {
-      setStatus("Signing in...");
-      const result = await safeFetch("/api/auth/start", {
-        method: "POST",
-        body: JSON.stringify(credentials),
-      });
+      setStatus("Verifying code...");
+      let result = null;
+      try {
+        result = await safeFetch("/api/auth/totp-login", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+      } catch (err) {
+        // If no user exists yet, attempt first-time setup
+        const msg = String(err.message || "");
+        if (msg.includes("No user configured") || msg.includes("Authenticator not configured") || msg.includes("404") || msg.includes("409")) {
+          result = await safeFetch("/api/auth/setup-first", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+        } else {
+          throw err;
+        }
+      }
       window.location.href = result.redirect || "/app";
     } catch (err) {
       setStatus(err.message, "error");

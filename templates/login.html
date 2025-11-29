@@ -21,20 +21,6 @@
         </div>
         <form id="login-form" class="login-form" autocomplete="off">
           <label>
-            <span>Username or email</span>
-            <input
-              type="text"
-              name="identifier"
-              autocomplete="username"
-              placeholder="admin"
-              required
-            />
-          </label>
-          <label>
-            <span>Password</span>
-            <input type="password" name="password" placeholder="********" required />
-          </label>
-          <label>
             <span>Authenticator code</span>
             <input
               type="text"
@@ -43,10 +29,11 @@
               pattern="[0-9]*"
               placeholder="123456"
               autocomplete="one-time-code"
+              required
             />
           </label>
           <p class="muted login-hint">
-            Enter the code from your Google or Microsoft Authenticator app if you already configured MFA.
+            Enter the 6-digit code from Google or Microsoft Authenticator.
           </p>
           <button type="submit" class="pill primary">Sign in</button>
         </form>
@@ -72,10 +59,13 @@
         {% endif %}
         {% if allow_registration %}
         <div class="login-register">
-          <a class="pill ghost register-link" href="/register">Register a workspace owner</a>
+          <p class="muted">No user exists yet. Scan the QR below to set up the authenticator, then enter the code to create the single user.</p>
+          {% if mfa_qr %}
+            <img src="{{ mfa_qr }}" alt="Scan to set up authenticator" style="max-width:240px;border-radius:8px" />
+          {% endif %}
         </div>
         {% endif %}
-        <a class="pill ghost login-guest" href="/app">Continue without login</a>
+        <a class="pill ghost login-guest" href="/continue">Continue without login</a>
       </article>
       <div class="modal-backdrop reset-modal hidden" id="reset-modal">
         <div class="modal small">

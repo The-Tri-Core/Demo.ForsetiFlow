@@ -57,12 +57,7 @@
     }
   }
 
-  function formatAssignee(resourceId) {
-    if (!resourceId) return "Unassigned";
-    const res = resources.find((r) => String(r.id) === String(resourceId));
-    if (res) return `${res.name} (${res.status})`;
-    return `Resource #${resourceId}`;
-  }
+  function formatAssignee() { return "Owner: You"; }
 
   function renderTask(task) {
     const node = cardTemplate.content.cloneNode(true);
@@ -86,15 +81,11 @@
 
     title.textContent = task.title;
     parent.textContent = task.parent_id ? `Parent #${task.parent_id}` : "";
-    setResourceOptions(resourceSel, task.resource_id);
+    setResourceOptions(resourceSel, "");
     if (desc) desc.value = task.description || "";
-    if (assigneeDisplay) assigneeDisplay.textContent = formatAssignee(task.resource_id);
+    if (assigneeDisplay) assigneeDisplay.textContent = formatAssignee();
     if (descDisplay) descDisplay.textContent = (task.description || "").trim() || "No description";
-    if (resourceSel && assigneeDisplay) {
-      resourceSel.addEventListener("change", () => {
-        assigneeDisplay.textContent = formatAssignee(resourceSel.value || "");
-      });
-    }
+    // No resource selection in single-user mode
 
     if (desc && descDisplay) {
       desc.addEventListener("input", () => {
@@ -122,7 +113,6 @@
       try {
         const payload = {
           due_date: due.value,
-          resource_id: resourceSel.value || null,
           description: desc ? desc.value : "",
         };
         await window.api(`/api/tasks/${task.id}`, { method: "PATCH", body: JSON.stringify(payload) });
@@ -183,24 +173,14 @@
     col.appendChild(node);
   }
 
-  function setResourceOptions(selectEl, selectedId) {
+  function setResourceOptions(selectEl) {
     if (!selectEl) return;
     selectEl.innerHTML = "";
     const opt = document.createElement("option");
     opt.value = "";
-    opt.textContent = "Unassigned";
+    opt.textContent = "Owner: You";
     selectEl.append(opt);
-    resources.forEach((res) => {
-      const o = document.createElement("option");
-      o.value = res.id;
-      o.textContent = `${res.name} (${res.status})`;
-      if (String(selectedId || "") === String(res.id)) o.selected = true;
-      selectEl.append(o);
-    });
-    if (!selectEl.value) {
-      const admin = resources.find((r) => (r.name || "").toLowerCase() === "admin");
-      if (admin) selectEl.value = String(admin.id);
-    }
+    selectEl.disabled = true;
   }
 
   Object.entries(columns).forEach(([status, col]) => {
@@ -274,26 +254,12 @@
     return labels[status] || status;
   }
 
-  async function ensureResourceCache() {
-    if (resources.length) return resources;
-    try {
-      const fresh = await window.api(`/api/resources/${window.PROJECT_ID}`);
-      resources = Array.isArray(fresh) ? fresh : [];
-    } catch (err) {
-      resources = [];
-    }
-    return resources;
-  }
+  async function ensureResourceCache() { return []; }
 
   function populateQuickModalResources(selectEl) {
     if (!selectEl) return;
-    selectEl.innerHTML = '<option value="">Unassigned</option>';
-    resources.forEach((res) => {
-      const opt = document.createElement("option");
-      opt.value = res.id;
-      opt.textContent = `${res.name} (${res.status})`;
-      selectEl.append(opt);
-    });
+    selectEl.innerHTML = '<option value="">Owner: You</option>';
+    selectEl.disabled = true;
   }
 
   async function openQuickTaskModal(targetStatus) {
@@ -320,12 +286,7 @@
             <span>Description</span>
             <textarea name="description" rows="3" placeholder="Optional description"></textarea>
           </label>
-          <label>
-            <span>Assignee</span>
-            <select name="resource_id" class="quick-task-resource">
-              <option value="">Loading...</option>
-            </select>
-          </label>
+          
           <label>
             <span>Due date</span>
             <input type="date" name="due_date" />
@@ -359,7 +320,7 @@
       const payload = Object.fromEntries(formData.entries());
       payload.description = payload.description || "";
       payload.due_date = payload.due_date || "";
-      if (!payload.resource_id) payload.resource_id = null;
+      
       try {
         await window.api(`/api/projects/${window.PROJECT_ID}/tasks`, { method: "POST", body: JSON.stringify(payload) });
         closeModal();
