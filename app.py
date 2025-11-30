@@ -5,6 +5,9 @@ import secrets
 import shutil
 import sqlite3
 import tempfile
+import threading
+import time
+import datetime
 import pyotp
 import qrcode
 from authlib.integrations.base_client.errors import OAuthError
@@ -89,6 +92,63 @@ DEFAULT_ADMIN_EMAIL = os.environ.get("DEFAULT_ADMIN_EMAIL")
 DEFAULT_ADMIN_PHONE = os.environ.get("DEFAULT_ADMIN_PHONE") or "0000000000"
 DEFAULT_ADMIN_COUNTRY = os.environ.get("DEFAULT_ADMIN_COUNTRY") or "1"
 MFA_ISSUER = os.environ.get("MFA_ISSUER") or "Forseti Flow"
+
+# Demo mode configuration: when enabled, the normal TOTP secret provisioning and
+# verification are bypassed in favor of a single fixed code suitable for a
+# public showcase (non-production). The database is automatically reset every 24h.
+DEMO_MODE = os.environ.get("DEMO_MODE", "0") not in {"0", "false", "False"}
+DEMO_TOTP_CODE = os.environ.get("DEMO_TOTP_CODE", "246810").strip()
+
+
+def _get_or_create_demo_user() -> int:
+    """Ensure there is at least one demo user and return its id."""
+    db = get_db()
+    row = db.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()
+    if row:
+        return row["id"]
+    db.execute(
+        "INSERT INTO users (email, username, password_hash, phone_number, country_code, must_update_credentials, is_admin, mfa_secret) VALUES (?, ?, ?, ?, ?, 0, 1, '')",
+        (None, DEFAULT_ADMIN_USERNAME, "", "", ""),
+    )
+    db.commit()
+    row = db.execute("SELECT id FROM users ORDER BY id LIMIT 1").fetchone()
+    return row["id"]
+
+
+def _reset_database():
+    """Delete and re-initialize the SQLite database (demo mode)."""
+    try:
+        if os.path.exists(DB_PATH):
+            os.remove(DB_PATH)
+    except OSError:
+        pass
+    with app.app_context():
+        init_db()
+
+
+def _needs_daily_reset() -> bool:
+    if not os.path.exists(DB_PATH):
+        return False
+    age_seconds = time.time() - os.path.getmtime(DB_PATH)
+    return age_seconds > 60 * 60 * 24  # 24h
+
+
+def _maybe_reset_database_for_demo():
+    if DEMO_MODE and _needs_daily_reset():
+        _reset_database()
+
+
+def _schedule_daily_reset():
+    if not DEMO_MODE:
+        return
+    def worker():
+        while True:
+            now = datetime.datetime.utcnow()
+            tomorrow = (now + datetime.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            delay = (tomorrow - now).total_seconds()
+            time.sleep(max(delay, 60))  # minimum sleep safeguard
+            _reset_database()
+    threading.Thread(target=worker, name="daily-reset", daemon=True).start()
 
 
 def ensure_db_permissions():
@@ -196,6 +256,14 @@ def _get_user_count() -> int:
     db = get_db()
     row = db.execute("SELECT COUNT(*) as total FROM users").fetchone()
     return row["total"] if row else 0
+
+
+@app.context_processor
+def inject_demo_flags():
+    return {
+        "demo_mode": DEMO_MODE,
+        "demo_code": DEMO_TOTP_CODE if DEMO_MODE else "",
+    }
 
 
 def _generate_mfa_qr(secret: str, label: str) -> str:
@@ -440,6 +508,16 @@ def render_login_view():
 def login_page():
     if session.get("user_id"):
         return redirect(url_for("index_page"))
+    if DEMO_MODE:
+        # In demo mode, always show login page with demo code hint.
+        return render_template(
+            "login.html",
+            oauth_providers=[],
+            oauth_error=None,
+            allow_registration=False,
+            mfa_qr=None,
+            demo_code=DEMO_TOTP_CODE,
+        )
     if _get_user_count() == 0:
         return redirect(url_for("setup_page"))
     return render_login_view()
@@ -447,7 +525,7 @@ def login_page():
 @app.route("/setup")
 def setup_page():
     init_db()
-    if _get_user_count():
+    if DEMO_MODE or _get_user_count():
         return redirect(url_for("login_page"))
     # Ensure a pending secret and QR are available
     pending_mfa_secret = session.get("pending_mfa_secret")
@@ -567,7 +645,7 @@ def account_page():
     if not user:
         abort(404, "User not found.")
     error = None
-    mfa_setup_required = not bool(user["mfa_secret"])
+    mfa_setup_required = False if DEMO_MODE else not bool(user["mfa_secret"])
     pending_mfa_secret = session.get("pending_mfa_secret")
     if not mfa_setup_required and "pending_mfa_secret" in session:
         session.pop("pending_mfa_secret", None)
@@ -702,6 +780,12 @@ def totp_login():
     totp_code = (data.get("totp_code") or "").strip()
     if not totp_code:
         abort(400, "Authenticator code is required.")
+    if DEMO_MODE:
+        if totp_code != DEMO_TOTP_CODE:
+            abort(401, "Invalid demo code.")
+        session["user_id"] = _get_or_create_demo_user()
+        session.pop("needs_update", None)
+        return jsonify({"redirect": "/app"})
     db = get_db()
     row = db.execute("SELECT id, mfa_secret, must_update_credentials FROM users ORDER BY id LIMIT 1").fetchone()
     if not row:
@@ -726,6 +810,15 @@ def setup_first_user():
     init_db()
     db = get_db()
     count = db.execute("SELECT COUNT(*) as total FROM users").fetchone()["total"]
+    if DEMO_MODE:
+        # In demo mode the first user is auto-created with the demo code.
+        data = request.get_json(silent=True) or {}
+        totp_code = (data.get("totp_code") or "").strip()
+        if totp_code != DEMO_TOTP_CODE:
+            abort(401, "Invalid demo code.")
+        user_id = _get_or_create_demo_user()
+        session["user_id"] = user_id
+        return jsonify({"redirect": "/app"})
     if count:
         abort(409, "User already exists.")
     data = request.get_json(silent=True) or {}
@@ -1261,7 +1354,9 @@ def delete_task(task_id: str):
 if __name__ == "__main__":
     with app.app_context():
         init_db()
-    port = int(os.environ.get("PORT", "51001") or "51001")
+        _maybe_reset_database_for_demo()
+        _schedule_daily_reset()
+    port = int(os.environ.get("PORT", "51005") or "51005")
     app.run(host="0.0.0.0", port=port, debug=True)
 
 

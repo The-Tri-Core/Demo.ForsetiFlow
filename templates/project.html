@@ -79,6 +79,7 @@
   </main>
 
   <script>window.PROJECT_ID = "{{ project.id }}";</script>
+    {% if demo_mode %}<div class="demo-watermark">DEMO</div>{% endif %}
   <script src="/static/api.js"></script>
   <script src="/static/project.js"></script>
   <script>

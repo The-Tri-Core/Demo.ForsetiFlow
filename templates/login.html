@@ -18,7 +18,17 @@
           <p class="eyebrow">Forseti Flow</p>
           <h1>Secure project control</h1>
           <p class="lede">Sign in to manage your workspace with confidence.</p>
+          {% if demo_code %}
+          <p class="demo-hint" style="margin-top:0.5rem;font-size:0.9rem;">
+            Public demo code: <code>{{ demo_code }}</code>
+          </p>
+          {% endif %}
         </div>
+        {% if demo_mode %}
+        <div class="muted" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); padding: 10px 12px; border-radius: 12px;">
+          <strong>Demo Environment:</strong> This instance is provided for demonstration purposes and is not actively maintained. Features and data may be outdated versus the canonical source. For the latest updates, releases, and documentation, please visit the GitHub repository.
+        </div>
+        {% endif %}
         <form id="login-form" class="login-form" autocomplete="off">
           <label>
             <span>Authenticator code</span>
@@ -67,6 +77,7 @@
         {% endif %}
         <a class="pill ghost login-guest" href="/continue">Continue without login</a>
       </article>
+      {% if demo_mode %}<div class="demo-watermark">DEMO</div>{% endif %}
       <div class="modal-backdrop reset-modal hidden" id="reset-modal">
         <div class="modal small">
           <header>

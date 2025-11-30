@@ -9,6 +9,26 @@ Forseti Flow is now an individual-use project/task tracker built with Flask and 
 - Simple HTML UI powered by fetch calls to the REST API
 - SQLite database persisted in `instance/project_manager.sqlite` (configurable via `PROJECT_DB`)
 
+## Public Demo Mode
+
+To simplify public trials, Forseti Flow can run in a "demo" mode that bypasses real authenticator setup and instead uses a single fixed TOTP code. In this mode the database is automatically reset every 24 hours to keep the environment clean.
+
+Enable demo mode by setting environment variables:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `DEMO_MODE` | `1` (truthy) | Turn on public demo logic |
+| `DEMO_TOTP_CODE` | `246810` | The single code accepted for login |
+
+Behavior in demo mode:
+- The setup flow (`/setup`) is skipped.
+- Login accepts only the fixed `DEMO_TOTP_CODE`.
+- A demo user is auto-created if none exists.
+- MFA/account update screens do not require authenticator provisioning.
+- Database file is deleted and reinitialized if older than 24h; a background thread schedules midnight UTC resets.
+
+Disable demo mode by setting `DEMO_MODE=0` or `false`.
+
 ## Installation & Running
 1) **Prerequisites**: Python 3.11+ and `pip` available in your PATH.
 2) **Get the code**: clone or download this repository.
@@ -38,11 +58,13 @@ Data persists in `./data` directory. See environment variables below for configu
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `51001` | Port the Flask server listens on |
+| `PORT` | `51005` | Port the Flask server listens on |
 | `PROJECT_DATA_DIR` | `/app/instance` | Directory where SQLite database is stored |
 | `PROJECT_DB` | `project_manager.sqlite` | SQLite database filename |
 | `FLASK_SECRET_KEY` | `dev-secret-key` | Secret key for Flask sessions and cookies |
 | `MFA_ISSUER` | `Forseti Flow` | Issuer name displayed to authenticator apps when scanning the QR code |
+| `DEMO_MODE` | `0` (off) | Enable public demo (fixed TOTP, daily reset) |
+| `DEMO_TOTP_CODE` | `246810` | Fixed code for demo mode |
 
 ## Reset tool
 
